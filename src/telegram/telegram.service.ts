@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { isURL } from 'validator';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
@@ -161,16 +162,18 @@ Get 🔍 - возвращает ссылку по её id
     if (name && url) {
       if (isURL(url)) {
         try {
+          const linkId = uuidv4();
           const link = await this.prisma.link.create({
             data: {
               name,
               url,
-              userId,
+              user_id: userId,
+              link_id: linkId,
             },
           });
           this.bot.sendMessage(
             chatId,
-            `Ссылка сохранена! Уникальный код: ${link.id}`,
+            `Ссылка сохранена! Уникальный код: ${link.link_id}`,
           );
         } catch (error) {
           if (error.code === 'P2002') {
@@ -196,10 +199,10 @@ Get 🔍 - возвращает ссылку по её id
   private async handleList(chatId: number, userId: number, page: number) {
     const pageSize = 5;
     const links = await this.prisma.link.findMany({
-      where: { userId },
+      where: { user_id: userId },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      select: { id: true, name: true, url: true, createdAt: true },
+      select: { link_id: true, name: true, url: true, created_at: true },
     });
 
     if (links.length === 0) {
@@ -209,7 +212,7 @@ Get 🔍 - возвращает ссылку по её id
 
     let response = `Ваши сохранённые ссылки (страница ${page}):\n`;
     links.forEach((link) => {
-      response += `ID: ${link.id}\nНазвание: ${link.name}\nURL: ${link.url}\nСоздано: ${link.createdAt}\n\n`;
+      response += `Link ID: ${link.link_id}\nНазвание: ${link.name}\nURL: ${link.url}\nСоздано: ${link.created_at}\n\n`;
     });
 
     const inlineKeyboard = {
@@ -227,20 +230,20 @@ Get 🔍 - возвращает ссылку по её id
   }
 
   private async handleDelete(chatId: number, userId: number, text: string) {
-    const id = parseInt(text);
-
     try {
-      const link = await this.prisma.link.findUnique({ where: { id } });
+      const link = await this.prisma.link.findUnique({
+        where: { link_id: text },
+      });
       if (!link) {
         this.bot.sendMessage(chatId, 'Ссылка с таким ID не найдена.');
         return;
       }
-      if (link.userId !== userId) {
+      if (link.user_id !== userId) {
         this.bot.sendMessage(chatId, 'Вы не можете удалить эту ссылку.');
         return;
       }
 
-      await this.prisma.link.delete({ where: { id } });
+      await this.prisma.link.delete({ where: { link_id: text } });
       this.bot.sendMessage(chatId, 'Ссылка успешно удалена.');
     } catch (error) {
       this.bot.sendMessage(chatId, 'Произошла ошибка при удалении ссылки.');
@@ -248,9 +251,9 @@ Get 🔍 - возвращает ссылку по её id
   }
 
   private async handleGet(chatId: number, text: string) {
-    const id = parseInt(text);
-
-    const link = await this.prisma.link.findUnique({ where: { id } });
+    const link = await this.prisma.link.findUnique({
+      where: { link_id: text },
+    });
 
     if (link) {
       this.bot.sendMessage(chatId, `URL: ${link.url}`);

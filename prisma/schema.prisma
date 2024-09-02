@@ -17,6 +17,7 @@ model link {
   id          Int      @id @default(autoincrement())
   url         String   @unique
   name        String
-  createdAt   DateTime @default(now())
-  userId      Int
+  created_at  DateTime @default(now())
+  user_id     Int
+  link_id     String @unique
 }
